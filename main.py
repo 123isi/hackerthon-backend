@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 origins = [
-    "http://127.0.0.1:5500",  # 허용할 프론트엔드 origin
+    "http://127.0.0.1:5500",
 ]
 
 app.add_middleware(
@@ -29,8 +29,6 @@ Base.metadata.create_all(bind=engine)
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
-# 모델
 class SurveyItem(BaseModel):
     number: int
     question: str
@@ -111,8 +109,6 @@ def submit_survey(survey: List[SurveyItem]):
         db.close()
 
     return {"message": "분석 완료 및 저장 성공", "result": parsed}
-
-# 페르소나 설명 생성
 def generate_persona_description(strong: str, keywords: List[str]) -> str:
     prompt = f"""
 당신은 감성적인 작가입니다.
@@ -167,7 +163,7 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
     response = model.generate_content(prompt)
 
     raw_text = response.text.strip()
-    print("🔍 Gemini 응답:", raw_text)  # 로그 찍기
+    print("🔍 Gemini 응답:", raw_text)
 
     try:
         return json.loads(raw_text)
@@ -180,23 +176,17 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
 @app.get("/api/questions")
 def generate_and_save_quests():
     db: Session = SessionLocal()
-
-    # 최신 키워드 가져오기
     latest_content = db.query(Content).order_by(Content.id.desc()).first()
     if not latest_content or not latest_content.keyword:
         db.close()
         raise HTTPException(status_code=404, detail="contents에 키워드가 없습니다.")
 
     keywords = [kw.strip() for kw in latest_content.keyword.split(",")]
-
-    # 항상 새 퀘스트 생성
     new_quests = generate_quests_from_keywords(keywords)
 
     if not new_quests:
         db.close()
         raise HTTPException(status_code=400, detail="퀘스트 생성 실패")
-
-    # DB 저장
     saved = []
     for quest_text in new_quests[:10]:  # 최대 10개만 저장
         quest = Quest(mission_text=quest_text, state="NOT")
@@ -276,8 +266,6 @@ class ChatMessage(BaseModel):
     new_message: str
 def convert_gpt_to_gemini(messages: List[Dict[str, str]]) -> List[Dict]:
     gemini_history = []
-
-    # system 프롬프트 먼저 넣기
     system_prompt = """
     너는 사용자의 감정에 공감하고 위로해주는 대화 상대야.
     - 따뜻하고 친근한 말투를 사용해.
