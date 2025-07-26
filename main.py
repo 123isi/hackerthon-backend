@@ -10,9 +10,23 @@ import google.generativeai as genai
 import json
 import re
 
-# 초기 설정
-Base.metadata.create_all(bind=engine)
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],        # 모든 origin 허용
+    allow_credentials=True,     # 인증 정보 포함 허용 (주의: allow_origins=["*"] 와 함께 사용 시 제한 있음)
+    allow_methods=["*"],        # 모든 메서드 허용
+    allow_headers=["*"],        # 모든 헤더 허용
+)
+
+
+Base.metadata.create_all(bind=engine)
+
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
