@@ -13,17 +13,17 @@ import re
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-
-origins = ["*"]
+origins = [
+    "http://127.0.0.1:5500",  # 허용할 프론트엔드 origin
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # 모든 origin 허용
-    allow_credentials=True,     # 인증 정보 포함 허용 (주의: allow_origins=["*"] 와 함께 사용 시 제한 있음)
-    allow_methods=["*"],        # 모든 메서드 허용
-    allow_headers=["*"],        # 모든 헤더 허용
+    allow_origins=origins,           # origin 리스트
+    allow_credentials=True,
+    allow_methods=["*"],             # 모든 HTTP 메서드 허용
+    allow_headers=["*"],             # 모든 헤더 허용
 )
-
 
 Base.metadata.create_all(bind=engine)
 
