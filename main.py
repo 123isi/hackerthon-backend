@@ -191,6 +191,18 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
 @app.get("/api/questions")
 def generate_and_save_quests():
     db: Session = SessionLocal()
+
+    # 기존 퀘스트 있으면 모두 보여주기 (상태 상관없이)
+    existing_quests = db.query(Quest).all()
+    if existing_quests:
+        result = [
+            {"id": q.id, "question": q.mission_text, "state": q.state}
+            for q in existing_quests
+        ]
+        db.close()
+        return result
+
+    # 없으면 새로 생성
     latest_content = db.query(Content).order_by(Content.id.desc()).first()
     if not latest_content or not latest_content.keyword:
         db.close()
@@ -204,10 +216,10 @@ def generate_and_save_quests():
         raise HTTPException(status_code=400, detail="퀘스트 생성 실패")
 
     saved = []
-    for quest_text in new_quests[:10]:  # 최대 10개만 저장
+    for quest_text in new_quests[:10]:
         quest = Quest(mission_text=quest_text, state="NOT")
         db.add(quest)
-        db.flush()  # ID 생성
+        db.flush()  # id 확보
         saved.append({"id": quest.id, "question": quest_text, "state": "NOT"})
 
     db.commit()
