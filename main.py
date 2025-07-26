@@ -250,3 +250,78 @@ def update_quests_state(update_data: Dict[str, str] = Body(...)):
         "message": "퀘스트 상태 업데이트 완료",
         "updated": updated
     }
+@app.post("/api/conversation/init")
+def init_conversation():
+    db = SessionLocal()
+    persona = db.query(Persona).order_by(Persona.id.desc()).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="분석된 페르소나가 없습니다.")
+
+    system_prompt = f"""
+너는 이름이 '추구미'인 감성 조력자야.
+사용자의 성향은 다음과 같아:
+
+강점:
+{persona.strong}
+
+약점:
+{persona.weakness}
+
+보완 키워드:
+{persona.keyword}
+
+너는 따뜻하고 공감하는 말투로 대화해줘. 너무 길지 않게 2~4문장 정도로 답해.
+질문에 따라 조언이나 위로, 동기부여를 해줘.
+"""
+
+    return {"system_prompt": system_prompt}
+
+
+class ChatMessage(BaseModel):
+    history: List[Dict[str, str]]  # [{"role": "user", "content": "..."}, {"role": "assistant", ...}]
+    new_message: str
+
+from pydantic import BaseModel
+
+class ChatMessage(BaseModel):
+    history: List[Dict[str, str]]  # [{"role": "user", "content": "..."}, ...]
+    new_message: str
+def convert_gpt_to_gemini(messages: List[Dict[str, str]]) -> List[Dict]:
+    gemini_history = []
+
+    # system 프롬프트 먼저 넣기
+    system_prompt = """
+    너는 사용자의 감정에 공감하고 위로해주는 대화 상대야.
+    - 따뜻하고 친근한 말투를 사용해.
+    - 과하게 분석하거나 설명하지 말고, 감정 중심으로 응답해.
+    - 아래와 같은 포맷은 절대 사용하지 마세요:
+      - 마크다운 형식 (예: **굵은 글자**, 리스트(-, *, •), / 등)
+      - 이모지
+      - HTML 태그
+    - 포맷팅 없이 자연스러운 문장으로만 대답해주세요.
+    - 문단으로 구성된 따뜻한 응답을 해줘.
+    """
+    gemini_history.append({
+        "role": "user",
+        "parts": [system_prompt.strip()]
+    })
+
+    # 기존 메시지 추가
+    for msg in messages:
+        gemini_history.append({
+            "role": "user" if msg["role"] == "user" else "model",
+            "parts": [msg["content"]]
+        })
+
+    return gemini_history
+
+@app.post("/api/conversation/chat")
+def chat_with_persona(chat: ChatMessage):
+    gpt_format = chat.history + [{"role": "user", "content": chat.new_message}]
+    gemini_format = convert_gpt_to_gemini(gpt_format)
+    model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
+    chat_session = model.start_chat(history=gemini_format)
+    response = chat_session.send_message(chat.new_message)
+
+    return {"reply": response.text.strip()}
+
