@@ -154,9 +154,10 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
 
 조건:
 - 키워드: {", ".join(keywords)}
-- 각 키워드당 1개의 퀘스트 생성
+- 총 10개의 퀘스트 생성
+- 키워드들을 참고해서 다양하고 실천 가능한 문장으로 구성
 - 퀘스트는 간단 명료한 실천문장
-- 비슷한 퀘스트가 있다면 다른 표현이나 방식으로 바꿔줘
+- 비슷한 퀘스트가 있다면 표현이나 방식 다르게 바꿔줘
 - JSON 배열로 응답: ["~하기", "~시도해보기" 등]
 
 설명 없이 결과만 JSON으로 줘.
@@ -180,6 +181,7 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
 def generate_and_save_quests():
     db: Session = SessionLocal()
 
+    # 최신 키워드 가져오기
     latest_content = db.query(Content).order_by(Content.id.desc()).first()
     if not latest_content or not latest_content.keyword:
         db.close()
@@ -187,38 +189,24 @@ def generate_and_save_quests():
 
     keywords = [kw.strip() for kw in latest_content.keyword.split(",")]
 
-    # 기존 퀘스트 조회
-    existing_quests = db.query(Quest).all()
-
-    # 하나라도 NOT이 있으면 새로 만들지 말고 기존 것 반환
-    if any(q.state == "NOT" for q in existing_quests):
-        result = [{"id": q.id, "question": q.mission_text, "state": q.state} for q in existing_quests]
-        db.close()
-        return result
-
-    # 모든 퀘스트가 SUCCESS인 경우 → 새 퀘스트 생성
-    existing_texts = set(q.mission_text for q in existing_quests)
-
+    # 항상 새 퀘스트 생성
     new_quests = generate_quests_from_keywords(keywords)
+
     if not new_quests:
         db.close()
         raise HTTPException(status_code=400, detail="퀘스트 생성 실패")
 
+    # DB 저장
     saved = []
-    for quest_text in new_quests:
-        if quest_text not in existing_texts:  # 중복 제거
-            quest = Quest(mission_text=quest_text, state="NOT")
-            db.add(quest)
-            saved.append({"question": quest_text, "state": "NOT"})
+    for quest_text in new_quests[:10]:  # 최대 10개만 저장
+        quest = Quest(mission_text=quest_text, state="NOT")
+        db.add(quest)
+        saved.append({"question": quest_text, "state": "NOT"})
 
     db.commit()
-
-    # 전체 퀘스트 반환
-    all_quests = db.query(Quest).all()
-    result = [{"id": q.id, "question": q.mission_text, "state": q.state} for q in all_quests]
-
     db.close()
-    return result
+    return saved
+
 
 
 from typing import Dict
