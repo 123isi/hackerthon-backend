@@ -143,20 +143,27 @@ def create_final_persona(keywords: List[str]):
     db.close()
 
     return {"message": "최종 페르소나 저장 완료", "data": {"description": description, "keywords": keyword_str}}
+import re
+import json
+
 def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
     prompt = f"""
 너는 라이프코치이자 작가야.
-사용자가 아래 키워드를 실천할 수 있도록 구체적인 액션 기반 퀘스트를 만들어줘.
+아래 키워드를 참고해서 사용자가 실천할 수 있는 퀘스트를 총 10개 만들어줘.
 
 조건:
 - 키워드: {", ".join(keywords)}
 - 총 10개의 퀘스트 생성
-- 키워드들을 참고해서 다양하고 실천 가능한 문장으로 구성
-- 퀘스트는 간단 명료한 실천문장
-- 비슷한 퀘스트가 있다면 표현이나 방식 다르게 바꿔줘
-- JSON 배열로 응답: ["~하기", "~시도해보기" 등]
+- 퀘스트는 간단 명료한 실천 문장
+- 비슷한 내용은 표현 다르게 해줘
+- 반드시 JSON 배열로만 응답해줘 (설명 없이, ```json 같은 것도 절대 붙이지 마)
 
-설명 없이 결과만 JSON으로 줘.
+예시:
+[
+  "하루 10분 명상하기",
+  "물 충분히 마시기",
+  "잠들기 전 스트레칭하기"
+]
 """
 
     model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
@@ -165,12 +172,20 @@ def generate_quests_from_keywords(keywords: List[str]) -> List[str]:
     raw_text = response.text.strip()
     print("🔍 Gemini 응답:", raw_text)
 
+    # 1. 마크다운 제거
+    cleaned = re.sub(r"^```json", "", raw_text)
+    cleaned = re.sub(r"```$", "", cleaned).strip()
+
+    # 2. JSON 배열 추출
     try:
-        return json.loads(raw_text)
+        json_match = re.search(r"\[.*\]", cleaned, re.DOTALL)
+        if not json_match:
+            raise ValueError("JSON 배열을 찾을 수 없음")
+        json_text = json_match.group(0)
+        return json.loads(json_text)
     except Exception as e:
         print("❌ JSON 파싱 실패:", e)
         return []
-
 
 
 @app.get("/api/questions")
