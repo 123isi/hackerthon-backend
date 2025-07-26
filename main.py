@@ -202,11 +202,13 @@ def generate_and_save_quests():
     if not new_quests:
         db.close()
         raise HTTPException(status_code=400, detail="퀘스트 생성 실패")
+
     saved = []
     for quest_text in new_quests[:10]:  # 최대 10개만 저장
         quest = Quest(mission_text=quest_text, state="NOT")
         db.add(quest)
-        saved.append({"question": quest_text, "state": "NOT"})
+        db.flush()  # ID 생성
+        saved.append({"id": quest.id, "question": quest_text, "state": "NOT"})
 
     db.commit()
     db.close()
@@ -214,16 +216,17 @@ def generate_and_save_quests():
 
 
 
+
 from typing import Dict
 from fastapi import Body
 
 @app.patch("/api/questions")
-def update_quests_state(update_data: Dict[str, str] = Body(...)):
+def update_quests_state(update: Dict[str, str] = Body(...)):
     db = SessionLocal()
     updated = []
 
-    for quest_id_str, state in update_data.items():
-        if state not in ["SUCCESS", "NOT"]:
+    for quest_id_str, state in update.items():
+        if state.upper() not in ["SUCCESS", "NOT"]:
             continue
 
         try:
@@ -233,8 +236,8 @@ def update_quests_state(update_data: Dict[str, str] = Body(...)):
 
         quest = db.query(Quest).filter(Quest.id == quest_id).first()
         if quest:
-            quest.state = state
-            updated.append({"id": quest_id, "state": state})
+            quest.state = state.upper()
+            updated.append({"id": quest_id, "state": state.upper()})
 
     db.commit()
     db.close()
@@ -243,6 +246,8 @@ def update_quests_state(update_data: Dict[str, str] = Body(...)):
         "message": "퀘스트 상태 업데이트 완료",
         "updated": updated
     }
+
+
 @app.post("/api/conversation/init")
 def init_conversation():
     db = SessionLocal()
